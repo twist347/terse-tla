@@ -626,8 +626,10 @@ namespace tla {
 
     template<Floating T, std::size_t N>
         requires (N <= 4)
-    [[nodiscard]] constexpr auto inverse_or(const Mat<T, N, N> &m,
-                                            const Mat<T, N, N> &fallback) noexcept -> Mat<T, N, N> {
+    [[nodiscard]] constexpr auto inverse_or(
+        const Mat<T, N, N> &m,
+        const Mat<T, N, N> &fallback
+    ) noexcept -> Mat<T, N, N> {
         const T det = determinant(m);
         return det != T{0} ? detail::adjugate(m) * (T{1} / det) : fallback;
     }
