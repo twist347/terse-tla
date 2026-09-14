@@ -84,7 +84,7 @@ namespace tla {
             return swizzle<0, 1, 2>();
         }
 
-        // extend: Vec3f -> Vec4f, однородные координаты
+        // extend to homogeneous coordinates
         [[nodiscard]] constexpr auto xyzw(T w) const noexcept -> Vec<T, 4> requires (N == 3) {
             return {m_data[0], m_data[1], m_data[2], w};
         }
@@ -176,7 +176,7 @@ namespace tla {
 
         [[nodiscard]] constexpr auto operator==(const Vec &) const noexcept -> bool = default;
 
-        // непрерывность — жёсткий инвариант: на ней стоит выгрузка в GPU
+        // contiguity is a hard invariant: GPU upload relies on it
         [[nodiscard]] constexpr auto data(this auto &&self) noexcept -> auto * {
             static_assert(sizeof(Vec) == sizeof(T) * N, "padded vector: storage is not contiguous");
             return self.m_data.data();
@@ -218,7 +218,7 @@ namespace tla {
         return std::sqrt(length_sq(v));
     }
 
-    // порог — наименьшее нормальное: ниже него длина денормальна и деление даёт мусор.
+    // the threshold is the smallest normal: below it the length is denormal and the division is garbage
     template<Floating T, std::size_t N>
     [[nodiscard]] auto normalize(const Vec<T, N> &v) noexcept -> Vec<T, N> {
         const auto l = length(v);
@@ -242,13 +242,13 @@ namespace tla {
         return length(a - b);
     }
 
-    // GLSL-конвенция: v входящий (смотрит на поверхность), n нормализован.
+    // GLSL convention: v is the incident vector, n is normalized
     template<Floating T, std::size_t N>
     [[nodiscard]] constexpr auto reflect(const Vec<T, N> &v, const Vec<T, N> &n) noexcept -> Vec<T, N> {
         return v - n * (T{2} * dot(v, n));
     }
 
-    // t только Floating: при целом T он принимает лишь 0 и 1.
+    // Floating only: an integral t takes just 0 and 1
     template<Floating T, std::size_t N>
     [[nodiscard]] constexpr auto lerp(const Vec<T, N> &a, const Vec<T, N> &b, T t) noexcept -> Vec<T, N> {
         return a + (b - a) * t;
@@ -297,7 +297,7 @@ namespace tla {
         return clamp(v, T{0}, T{1});
     }
 
-    // смешанный допуск: абсолютный возле нуля, относительный на больших величинах.
+    // mixed tolerance: absolute near zero, relative at large magnitudes
     template<Floating T>
     [[nodiscard]] constexpr auto approx_eq(
         T a, T b,
@@ -348,21 +348,21 @@ namespace tla {
 // mat
 // ============================================================================
 
-// соглашения этой секции, менять их нельзя без пересмотра всего:
-//   - хранение по столбцам, вектор-столбец, умножение M * v
-//   - правая система координат во view space, look_at смотрит вдоль -Z
-//   - глубина в [0, 1] (родная для Vulkan и D3D; в GL — glClipControl, 4.5+)
-//   - углы в радианах
+// conventions of this section, none of them changeable in isolation:
+//   - column-major storage, column vectors, M * v
+//   - right-handed view space, look_at faces -Z
+//   - depth in [0, 1] (native to Vulkan and D3D; GL needs glClipControl, 4.5+)
+//   - angles in radians
 
 namespace tla {
     template<Number T, std::size_t R, std::size_t C>
         requires (R > 0 && C > 0)
     class Mat {
-        // column-major: m_cols[c] — c-й столбец
+        // column-major: m_cols[c] is column c
         std::array<Vec<T, R>, C> m_cols{};
 
     public:
-        // нулевая, НЕ единичная: glm-овский mat4(1.0f) — известная ловушка
+        // zero, NOT identity: glm's mat4(1.0f) is a known trap
         constexpr Mat() noexcept = default;
 
         template<typename... Cols>
@@ -390,7 +390,7 @@ namespace tla {
             return self.m_cols[c];
         }
 
-        // по значению: при хранении по столбцам строка не непрерывна, ссылку вернуть нельзя
+        // by value: a row is not contiguous under column-major storage
         [[nodiscard]] constexpr auto row(std::size_t r) const noexcept -> Vec<T, C> {
             Vec<T, C> res;
             for (std::size_t c = 0; c < C; ++c) {
@@ -399,19 +399,19 @@ namespace tla {
             return res;
         }
 
-        // математический порядок индексов. одноаргументного [] нет намеренно:
-        // именно он порождает путаницу M[c][r]
+        // math index order. no single-argument [] on purpose: that one
+        // is what breeds the M[c][r] confusion
         [[nodiscard]] constexpr auto operator[](this auto &&self, std::size_t r, std::size_t c) noexcept -> auto & {
             return self.m_cols[c][r];
         }
 
-        // непрерывность — жёсткий инвариант: на ней стоит выгрузка в GPU
+        // contiguity is a hard invariant: GPU upload relies on it
         [[nodiscard]] constexpr auto data(this auto &&self) noexcept -> auto * {
             static_assert(sizeof(Mat) == sizeof(T) * R * C, "padded columns: storage is not contiguous");
             return self.m_cols[0].data();
         }
 
-        // аналог Vec::xyz(): усечение до верхнего левого угла
+        // Vec::xyz() analogue: truncate to the top-left corner
         template<std::size_t R2, std::size_t C2>
             requires (R2 > 0 && C2 > 0 && R2 <= R && C2 <= C)
         [[nodiscard]] constexpr auto top_left() const noexcept -> Mat<T, R2, C2> {
@@ -495,8 +495,8 @@ namespace tla {
 }
 
 namespace tla::detail {
-    // присоединённая матрица: inverse == adjugate / det. вынесена, чтобы
-    // inverse и inverse_or не считали её дважды каждая по-своему.
+    // inverse == adjugate / det. shared so that inverse and inverse_or
+    // do not each roll their own copy
     template<Number T, std::size_t N>
         requires (N <= 4)
     [[nodiscard]] constexpr auto adjugate(const Mat<T, N, N> &m) noexcept -> Mat<T, N, N> {
@@ -554,7 +554,7 @@ namespace tla::detail {
 }
 
 namespace tla {
-    // линейная комбинация столбцов — это и есть определение M * v
+    // a linear combination of columns is the definition of M * v
     template<Number T, std::size_t R, std::size_t C>
     [[nodiscard]] constexpr auto operator*(const Mat<T, R, C> &m, const Vec<T, C> &v) noexcept -> Vec<T, R> {
         Vec<T, R> res;
@@ -564,8 +564,8 @@ namespace tla {
         return res;
     }
 
-    // каждый столбец результата — это один matvec.
-    // ВНИМАНИЕ: у матриц * это матричное произведение, а не покомпонентное, как у Vec.
+    // each column of the result is one matvec.
+    // NOTE: * on matrices is the matrix product, not componentwise as it is on Vec.
     template<Number T, std::size_t R, std::size_t K, std::size_t C>
     [[nodiscard]] constexpr auto operator*(const Mat<T, R, K> &a, const Mat<T, K, C> &b) noexcept -> Mat<T, R, C> {
         Mat<T, R, C> res;
@@ -586,7 +586,7 @@ namespace tla {
         return res;
     }
 
-    // размеров больше 4 в графике не бывает, поэтому явные формулы, а не Гаусс
+    // graphics never goes past 4, so explicit formulas rather than Gauss
     template<Number T, std::size_t N>
         requires (N <= 4)
     [[nodiscard]] constexpr auto determinant(const Mat<T, N, N> &m) noexcept -> T {
@@ -615,7 +615,7 @@ namespace tla {
         }
     }
 
-    // та же пара, что normalize/normalize_or: вырожденный случай ловится ассертом
+    // same pair as normalize/normalize_or: the degenerate case is caught by an assert
     template<Floating T, std::size_t N>
         requires (N <= 4)
     [[nodiscard]] constexpr auto inverse(const Mat<T, N, N> &m) noexcept -> Mat<T, N, N> {
@@ -632,7 +632,7 @@ namespace tla {
         return det != T{0} ? detail::adjugate(m) * (T{1} / det) : fallback;
     }
 
-    // для освещения при неравномерном масштабе обычной матрицы модели мало
+    // lighting under non-uniform scale needs this instead of the model matrix
     template<Floating T>
     [[nodiscard]] constexpr auto normal_matrix(const Mat<T, 4, 4> &m) noexcept -> Mat<T, 3, 3> {
         return transpose(inverse(m.template top_left<3, 3>()));
@@ -658,8 +658,8 @@ namespace tla {
         return res;
     }
 
-    // равномерный масштаб пишется как scale(Vec3f{s}) — отдельной перегрузки нет намеренно,
-    // иначе scale(2.f) читался бы двусмысленно
+    // uniform scale is written scale(Vec3f{s}). no scalar overload on purpose:
+    // scale(2.f) would read ambiguously
     template<Number T>
     [[nodiscard]] constexpr auto scale(const Vec<T, 3> &s) noexcept -> Mat<T, 4, 4> {
         return Mat<T, 4, 4>::diagonal(s.xyzw(T{1}));
@@ -701,7 +701,7 @@ namespace tla {
         };
     }
 
-    // формула Родрига. ось обязана быть нормализована.
+    // Rodrigues' formula. axis must be normalized.
     template<Floating T>
     [[nodiscard]] auto rotation(const Vec<T, 3> &axis, T a) noexcept -> Mat<T, 4, 4> {
         const T c = std::cos(a);
@@ -735,7 +735,7 @@ namespace tla {
         };
     }
 
-    // fovy — полный вертикальный угол обзора в радианах. z_near/z_far положительны.
+    // fovy is the full vertical field of view in radians. z_near/z_far are positive.
     template<Floating T>
     [[nodiscard]] auto perspective(T fovy, T aspect, T z_near, T z_far) noexcept -> Mat<T, 4, 4> {
         const T th = std::tan(fovy / T{2});
@@ -761,7 +761,7 @@ namespace tla {
         return res;
     }
 
-    // NDC -> экран. глубина уже в [0, 1] и не трогается.
+    // NDC -> screen. depth is already in [0, 1] and is left alone.
     template<Floating T>
     [[nodiscard]] constexpr auto viewport(T x, T y, T w, T h) noexcept -> Mat<T, 4, 4> {
         Mat<T, 4, 4> res;
@@ -816,8 +816,8 @@ struct std::formatter<tla::Vec<T, N>, char> : std::formatter<std::string, char> 
     }
 };
 
-// по строкам и с выравниванием по ширине: матрицу читают как в формуле,
-// а хранение по столбцам — деталь раскладки, которую видеть при отладке незачем
+// by rows and width-aligned: a matrix is read the way it is written in a formula,
+// and column-major is a storage detail there is no reason to see while debugging
 template<tla::Number T, std::size_t R, std::size_t C>
     requires (R > 0 && C > 0)
 struct std::formatter<tla::Mat<T, R, C>, char> : std::formatter<std::string, char> {
