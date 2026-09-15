@@ -11,6 +11,7 @@
 #include <cassert>
 #include <limits>
 #include <numbers>
+#include <ostream>
 
 // ============================================================================
 // concepts
@@ -282,8 +283,10 @@ namespace tla {
     }
 
     template<Number T, std::size_t N>
-    [[nodiscard]] constexpr auto clamp(const Vec<T, N> &v, const Vec<T, N> &lo,
-                                       const Vec<T, N> &hi) noexcept -> Vec<T, N> {
+    [[nodiscard]] constexpr auto clamp(
+        const Vec<T, N> &v,
+        const Vec<T, N> &lo, const Vec<T, N> &hi
+    ) noexcept -> Vec<T, N> {
         return min(max(v, lo), hi);
     }
 
@@ -851,3 +854,17 @@ struct std::formatter<tla::Mat<T, R, C>, char> : std::formatter<std::string, cha
         return std::formatter<std::string, char>::format(s, ctx);
     }
 };
+
+namespace tla {
+    template<Number T, std::size_t N>
+        requires (N > 0)
+    auto operator<<(std::ostream &os, const Vec<T, N> &v) -> std::ostream & {
+        return os << std::format("{}", v);
+    }
+
+    template<Number T, std::size_t R, std::size_t C>
+        requires (R > 0 && C > 0)
+    auto operator<<(std::ostream &os, const Mat<T, R, C> &m) -> std::ostream & {
+        return os << std::format("{}", m);
+    }
+}
