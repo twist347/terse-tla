@@ -337,14 +337,24 @@ namespace tla {
     }
 
     using Vec2i = Vec<std::int32_t, 2>;
+    using Vec3i = Vec<std::int32_t, 3>;
+    using Vec4i = Vec<std::int32_t, 4>;
     using Vec2f = Vec<float, 2>;
     using Vec3f = Vec<float, 3>;
     using Vec4f = Vec<float, 4>;
+    using Vec2d = Vec<double, 2>;
+    using Vec3d = Vec<double, 3>;
+    using Vec4d = Vec<double, 4>;
 
     static_assert(sizeof(Vec2i) == sizeof(std::int32_t) * 2);
+    static_assert(sizeof(Vec3i) == sizeof(std::int32_t) * 3);
+    static_assert(sizeof(Vec4i) == sizeof(std::int32_t) * 4);
     static_assert(sizeof(Vec2f) == sizeof(float) * 2);
     static_assert(sizeof(Vec3f) == sizeof(float) * 3);
     static_assert(sizeof(Vec4f) == sizeof(float) * 4);
+    static_assert(sizeof(Vec2d) == sizeof(double) * 2);
+    static_assert(sizeof(Vec3d) == sizeof(double) * 3);
+    static_assert(sizeof(Vec4d) == sizeof(double) * 4);
 }
 
 // ============================================================================
@@ -706,9 +716,14 @@ namespace tla {
         };
     }
 
-    // Rodrigues' formula. axis must be normalized.
+    // Rodrigues' formula.
     template<Floating T>
     [[nodiscard]] auto rotation(const Vec<T, 3> &axis, T a) noexcept -> Mat<T, 4, 4> {
+        // the tolerance is generous on purpose: an axis that is wrong is wrong by
+        // a lot, while a legitimately normalized one carries a few ulps of drift
+        assert(approx_eq(length_sq(axis), T{1}, std::numeric_limits<T>::epsilon() * T{64})
+               && "rotation about a non-normalized axis");
+
         const T c = std::cos(a);
         const T s = std::sin(a);
         const T k = T{1} - c;
@@ -740,9 +755,14 @@ namespace tla {
         };
     }
 
-    // fovy is the full vertical field of view in radians. z_near/z_far are positive.
+    // fovy is the full vertical field of view in radians.
     template<Floating T>
     [[nodiscard]] auto perspective(T fovy, T aspect, T z_near, T z_far) noexcept -> Mat<T, 4, 4> {
+        assert(fovy > T{0} && fovy < std::numbers::pi_v<T> && "perspective: fovy is outside (0, pi)");
+        assert(aspect > T{0} && "perspective: aspect is not positive");
+        assert(z_near > T{0} && "perspective: z_near is not positive");
+        assert(z_far > z_near && "perspective: z_far is not beyond z_near");
+
         const T th = std::tan(fovy / T{2});
         Mat<T, 4, 4> res;
         res[0, 0] = T{1} / (aspect * th);
@@ -755,6 +775,10 @@ namespace tla {
 
     template<Floating T>
     [[nodiscard]] constexpr auto ortho(T l, T r, T b, T t, T z_near, T z_far) noexcept -> Mat<T, 4, 4> {
+        // only non-degeneracy is required. an inverted range is the usual way to
+        // flip an axis -- ortho(0, w, h, 0, ...) is y-down screen space
+        assert(r != l && t != b && z_far != z_near && "ortho: degenerate range");
+
         Mat<T, 4, 4> res;
         res[0, 0] = T{2} / (r - l);
         res[1, 1] = T{2} / (t - b);
@@ -769,6 +793,9 @@ namespace tla {
     // NDC -> screen. depth is already in [0, 1] and is left alone.
     template<Floating T>
     [[nodiscard]] constexpr auto viewport(T x, T y, T w, T h) noexcept -> Mat<T, 4, 4> {
+        // a negative extent flips an axis on purpose; zero is always a bug
+        assert(w != T{0} && h != T{0} && "viewport: zero extent");
+
         Mat<T, 4, 4> res;
         res[0, 0] = w / T{2};
         res[1, 1] = h / T{2};
@@ -782,10 +809,16 @@ namespace tla {
     using Mat2f = Mat<float, 2, 2>;
     using Mat3f = Mat<float, 3, 3>;
     using Mat4f = Mat<float, 4, 4>;
+    using Mat2d = Mat<double, 2, 2>;
+    using Mat3d = Mat<double, 3, 3>;
+    using Mat4d = Mat<double, 4, 4>;
 
     static_assert(sizeof(Mat2f) == sizeof(float) * 4);
     static_assert(sizeof(Mat3f) == sizeof(float) * 9);
     static_assert(sizeof(Mat4f) == sizeof(float) * 16);
+    static_assert(sizeof(Mat2d) == sizeof(double) * 4);
+    static_assert(sizeof(Mat3d) == sizeof(double) * 9);
+    static_assert(sizeof(Mat4d) == sizeof(double) * 16);
 }
 
 // ============================================================================

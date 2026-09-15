@@ -9,6 +9,9 @@
 
 using tla::Vec2f;
 using tla::Vec2i;
+using tla::Vec3d;
+using tla::Vec3i;
+using tla::Vec4i;
 using tla::Vec3f;
 using tla::Vec4f;
 
@@ -29,7 +32,6 @@ namespace {
 // test cases below needs libm, a tolerance or std::format -- none constexpr
 
 namespace {
-    // construction and access
     static_assert(Vec3f{} == Vec3f{0.f, 0.f, 0.f});
     static_assert(Vec3f{2.f} == Vec3f{2.f, 2.f, 2.f});
     static_assert(Vec3f{1, 0, 0} == Vec3f{1.f, 0.f, 0.f}); // narrowing is allowed on purpose
@@ -56,13 +58,11 @@ namespace {
     static_assert(g_q.xyz() == g_a);
     static_assert(g_a.xyzw(0.f) == Vec4f{1.f, 2.f, 3.f, 0.f});
 
-    // structure bindings
     static_assert([] {
         const auto [x, y, z] = g_a;
         return x * 100.f + y * 10.f + z;
     }() == 123.f);
 
-    // arithmetic
     static_assert(g_a + g_b == Vec3f{5.f, 7.f, 9.f});
     static_assert(g_b - g_a == Vec3f{3.f, 3.f, 3.f});
     static_assert(g_a * g_b == Vec3f{4.f, 10.f, 18.f});
@@ -85,7 +85,6 @@ namespace {
         return v;
     }() == g_a);
 
-    // products
     static_assert(dot(g_a, g_b) == 32.f);
     static_assert(dot(Vec3f{1.f, 0.f, 0.f}, Vec3f{0.f, 1.f, 0.f}) == 0.f);
 
@@ -104,7 +103,6 @@ namespace {
     static_assert(reflect(Vec3f{0.f, -1.f, 0.f}, Vec3f{0.f, 1.f, 0.f}) == Vec3f{0.f, 1.f, 0.f});
     static_assert(reflect(Vec3f{1.f, 0.f, 0.f}, Vec3f{0.f, 1.f, 0.f}) == Vec3f{1.f, 0.f, 0.f});
 
-    // interpolation and clamping
     static_assert(lerp(g_a, g_b, 0.f) == g_a);
     static_assert(lerp(g_a, g_b, 1.f) == g_b);
     static_assert(lerp(g_a, g_b, 0.5f) == Vec3f{2.5f, 3.5f, 4.5f});
@@ -120,12 +118,19 @@ namespace {
     // approx_eq mixes absolute and relative tolerance
     static_assert(tla::approx_eq(0.f, g_eps / 2.f));  // near zero the tolerance is absolute
     static_assert(!tla::approx_eq(0.f, 1e-5f));
-    static_assert(tla::approx_eq(1e7f, 1e7f + 1.f));  // one ulp at 1e7 is 1.0, and an
-    static_assert(!tla::approx_eq(1e7f, 1e7f + 1e3f)); // absolute epsilon would reject it
+    // one ulp at 1e7 is 1.0, so a purely absolute epsilon would reject the first
+    static_assert(tla::approx_eq(1e7f, 1e7f + 1.f));
+    static_assert(!tla::approx_eq(1e7f, 1e7f + 1e3f));
     static_assert(tla::approx_eq(g_a, Vec3f{1.f, 2.f, 3.f + g_eps}));
     static_assert(!tla::approx_eq(g_a, Vec3f{1.f, 2.f, 3.1f}));
 
-    // angles
+    // the alias families, so that every one of them is instantiated at least once
+    static_assert(Vec3i{1, 2, 3} + Vec3i{1, 1, 1} == Vec3i{2, 3, 4});
+    static_assert(dot(Vec4i{1, 2, 3, 4}, Vec4i{1, 1, 1, 1}) == 10);
+    static_assert(cross(Vec3i{1, 0, 0}, Vec3i{0, 1, 0}) == Vec3i{0, 0, 1});
+    static_assert(lerp(Vec3d{}, Vec3d{1.0, 2.0, 3.0}, 0.5) == Vec3d{0.5, 1.0, 1.5});
+    static_assert(tla::approx_eq(Vec3d{1.0, 2.0, 3.0}, Vec3d{1.0, 2.0, 3.0}));
+
     static_assert(tla::approx_eq(tla::radians(180.f), std::numbers::pi_v<float>));
     static_assert(tla::approx_eq(tla::degrees(std::numbers::pi_v<float>), 180.f));
     static_assert(tla::approx_eq(tla::degrees(tla::radians(37.f)), 37.f));
@@ -143,6 +148,7 @@ TEST_CASE("vec: length and normalization") {
     CHECK(normalize(v) == Vec3f{0.6f, 0.8f, 0.f});
     CHECK(length(normalize(Vec3f{1.f, 1.f, 1.f})) == doctest::Approx(1.f));
     CHECK(distance(Vec3f{1.f, 0.f, 0.f}, Vec3f{4.f, 4.f, 0.f}) == 5.f);
+    CHECK(length(Vec3d{3.0, 4.0, 0.0}) == 5.0); // the double alias goes through libm too
 
     SUBCASE("normalize_or falls back below the smallest normal") {
         constexpr Vec3f fallback{0.f, 0.f, 1.f};

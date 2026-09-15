@@ -9,6 +9,9 @@
 using tla::Mat2f;
 using tla::Mat3f;
 using tla::Mat4f;
+using tla::Mat3d;
+using tla::Mat4d;
+using tla::Vec3d;
 using tla::Vec2f;
 using tla::Vec3f;
 using tla::Vec4f;
@@ -43,7 +46,6 @@ namespace {
 // std::tan become constexpr only in C++26 -- those live in the runtime section
 
 namespace {
-    // construction and access
     static_assert(g_zero[0, 0] == 0.f);                              // zero, NOT identity
     static_assert(g_zero == Mat3f{Vec3f{}, Vec3f{}, Vec3f{}});
     static_assert(Mat3f::identity() == Mat3f::diagonal(Vec3f{1.f, 1.f, 1.f}));
@@ -68,7 +70,6 @@ namespace {
     static_assert(g_m.top_left<2, 2>() == Mat2f{Vec2f{1.f, 0.f}, Vec2f{2.f, 1.f}});
     static_assert(g_m.top_left<1, 1>()[0, 0] == 1.f);
 
-    // arithmetic
     static_assert(g_ab + g_ab == g_ab * 2.f);
     static_assert(g_ab - g_ab == Mat2f{});
     static_assert(2.f * g_ab == g_ab * 2.f);
@@ -107,12 +108,10 @@ namespace {
     static_assert(transpose(transpose(g_wide)) == g_wide);
     static_assert(g_wide * Vec3f{1.f, 0.f, 0.f} == Vec2f{1.f, 4.f});
 
-    // transpose
     static_assert(transpose(transpose(g_m)) == g_m);
     static_assert(transpose(g_m).row(0) == g_m.col(0));
     static_assert(transpose(Mat3f::identity()) == Mat3f::identity());
 
-    // determinant
     static_assert(tla::determinant(Mat3f::identity()) == 1.f);
     static_assert(tla::determinant(g_m) == 1.f);
     static_assert(tla::determinant(Mat2f{Vec2f{3.f, 4.f}, Vec2f{8.f, 6.f}}) == -14.f);
@@ -139,6 +138,10 @@ namespace {
     static_assert(tla::normal_matrix(g_squash) == Mat3f::diagonal(Vec3f{1.f, 1.f, 0.25f}));
     static_assert(dot(tla::normal_matrix(g_squash) * g_n, g_linear * g_t) == 0.f);
     static_assert(dot(g_linear * g_n, g_linear * g_t) != 0.f);
+
+    // the double aliases, so that they are instantiated at least once
+    static_assert(inverse(Mat3d::diagonal(Vec3d{1.0, 2.0, 4.0})) == Mat3d::diagonal(Vec3d{1.0, 0.5, 0.25}));
+    static_assert(tla::determinant(Mat4d::identity()) == 1.0);
 
     // translation moves points and leaves directions alone
     static_assert(tla::translation(Vec3f{1.f, 2.f, 3.f}) * Vec4f{10.f, 20.f, 30.f, 1.f}
@@ -204,6 +207,12 @@ TEST_CASE("mat: rotation") {
         CHECK(tla::approx_eq(tla::rotation(Vec3f{1.f, 0.f, 0.f}, a), tla::rotation_x(a), g_eps));
         CHECK(tla::approx_eq(tla::rotation(Vec3f{0.f, 1.f, 0.f}, a), tla::rotation_y(a), g_eps));
         CHECK(tla::approx_eq(tla::rotation(Vec3f{0.f, 0.f, 1.f}, a), tla::rotation_z(a), g_eps));
+    }
+
+    SUBCASE("the double alias goes through libm too") {
+        const auto m = tla::rotation_z(tla::radians(90.0));
+        CHECK(tla::approx_eq(m * tla::Vec<double, 4>{1.0, 0.0, 0.0, 1.0},
+                             tla::Vec<double, 4>{0.0, 1.0, 0.0, 1.0}, 1e-12));
     }
 
     SUBCASE("a rotation is orthonormal: the transpose is the inverse") {
