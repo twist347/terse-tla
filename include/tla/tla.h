@@ -17,12 +17,23 @@
 // concepts
 // ============================================================================
 
-namespace tla {
+namespace tla::detail {
     template<typename T>
-    concept Integral = std::integral<T> && !std::same_as<T, bool>;
+    concept Character = std::same_as<T, char> || std::same_as<T, wchar_t>
+                        || std::same_as<T, char8_t> || std::same_as<T, char16_t>
+                        || std::same_as<T, char32_t>;
 
     template<typename T>
-    concept Floating = std::floating_point<T>;
+    concept Plain = std::same_as<T, std::remove_cv_t<T> >;
+}
+
+namespace tla {
+    template<typename T>
+    concept Integral = std::integral<T> && !std::same_as<T, bool>
+                       && !detail::Character<T> && detail::Plain<T>;
+
+    template<typename T>
+    concept Floating = std::floating_point<T> && detail::Plain<T>;
 
     template<typename T>
     concept Number = Integral<T> || Floating<T>;
@@ -722,7 +733,7 @@ namespace tla {
         // the tolerance is generous on purpose: an axis that is wrong is wrong by
         // a lot, while a legitimately normalized one carries a few ulps of drift
         assert(approx_eq(length_sq(axis), T{1}, std::numeric_limits<T>::epsilon() * T{64})
-               && "rotation about a non-normalized axis");
+            && "rotation about a non-normalized axis");
 
         const T c = std::cos(a);
         const T s = std::sin(a);

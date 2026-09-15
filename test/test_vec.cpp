@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <format>
 #include <limits>
 #include <numbers>
@@ -32,6 +33,14 @@ namespace {
 // test cases below needs libm, a tolerance or std::format -- none constexpr
 
 namespace {
+    static_assert(tla::Number<float> && tla::Number<std::int32_t> && tla::Number<unsigned char>);
+    static_assert(!tla::Number<bool>);
+    static_assert(!tla::Number<char>);
+    static_assert(!tla::Number<wchar_t>);
+    static_assert(!tla::Number<char8_t>);
+    static_assert(!tla::Number<const int>);
+    static_assert(!tla::Number<volatile float>);
+
     static_assert(Vec3f{} == Vec3f{0.f, 0.f, 0.f});
     static_assert(Vec3f{2.f} == Vec3f{2.f, 2.f, 2.f});
     static_assert(Vec3f{1, 0, 0} == Vec3f{1.f, 0.f, 0.f}); // narrowing is allowed on purpose
